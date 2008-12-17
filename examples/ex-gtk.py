@@ -108,6 +108,7 @@ text_vbox.pack_start (gtk.Label ("Notes:"),0,0,5)
 text_view = gtk.TextView ()
 text_view.set_left_margin (5)
 text_view.set_right_margin (5)
+text_view.set_wrap_mode (gtk.WRAP_WORD)
 text_view.get_buffer ().set_text ("Enter some notes here. ")
 
 text_vbox.add (text_view)
