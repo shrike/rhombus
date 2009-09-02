@@ -1,5 +1,72 @@
 #!/usr/bin/env python
 import gtk
+import imaplib
+import email
+
+class IMAPAccount (object):
+    def __init__ (self, user, passwd, host):
+        self.server = imaplib.IMAP4_SSL (host)
+        self.server.login (user, passwd)
+
+    def get_emails (self):
+        emails = []
+
+        self.server.select ()
+        typ, data = self.server.search (None, 'ALL')
+        for num in data[0].split():
+            typ, data = self.server.fetch (num, '(RFC822)')
+            msg_str = data[0][1]
+            email = EmailMessage.make_from_string (msg_str)
+            emails.append(email)
+
+        return emails
+
+class EmailMessage (object):
+    def __init__ (self, 
+            star=False,
+            sender='Unknown Sender',
+            labels=[],
+            subject='Unknown Subject',
+            attachment='',
+            datetime='',
+            full_text=''):
+
+        self.star = star
+        self.sender = sender
+        self.__labels = labels
+        self.subject = subject
+        self.attachment = attachment
+        self.datetime = datetime
+        self.full_text = full_text
+
+    @classmethod
+    def make_from_string (cls, s):
+        e = email.message_from_string (s)
+        text = e.get_payload ()
+        while type(text) is list:
+            text = text[0].get_payload()
+
+        return EmailMessage (
+                False, 
+                e['From'],
+                [],
+                e['Subject'],
+                '',
+                e['Date'],
+                text
+            )
+
+    def get_labels (self):
+        return ','.join (self.__labels)
+
+    def get_blurp (self):
+        return self.full_text.replace('\r', '').replace('\n', ' ').replace('  ', ' ')[:35] + '...'
+
+    def add_label (self, new_lbl):
+        self.__labels.append (new_lbl)
+
+    labels = property(get_labels)
+    blurp = property(get_blurp)
 
 class RhombusLayout (gtk.VBox):
     def __init__ (self, quit_cb, conf_conn_cb):
@@ -17,8 +84,12 @@ class RhombusLayout (gtk.VBox):
 
         right = RhombusLayout.make_email_view ()
         self.main_hpaned.add2 (right)
-        self.add_email ('', 'Viktor', 'cornell', 'wassup', 
-                        'here is a part of my email', 'pdf', 'Today')
+
+        user = ''
+        passwd = ''
+        email_acc = IMAPAccount (user, passwd, 'imap.gmail.com')
+        for email in email_acc.get_emails ():
+            self.add_email (email)
 
         self.statusbar = RhombusLayout.make_statusbar ()
         self.pack_start (self.statusbar, False, False)
@@ -79,7 +150,9 @@ class RhombusLayout (gtk.VBox):
                   'attachment', 'datetime']
         liststore = gtk.ListStore (str, str, str, str, str, str, str)
 
-        def add_email (cls, *args):
+        def add_email (cls, email):
+            args = (email.star, email.sender, email.labels, email.subject,
+                    email.blurp, email.attachment, email.datetime, )
             liststore.append (args)
 
         cls.add_email = add_email
